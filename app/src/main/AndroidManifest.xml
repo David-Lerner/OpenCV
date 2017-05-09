@@ -37,6 +37,11 @@
             android:screenOrientation="landscape"
             android:configChanges="keyboardHidden|orientation">
         </activity>
+        <activity android:name="TestActivity"
+            android:label=".TestActivity"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboardHidden|orientation">
+        </activity>
     </application>
 
     <supports-screens android:resizeable="true"

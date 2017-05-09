@@ -74,6 +74,15 @@ public class MainActivity extends AppCompatActivity {
                 launchColorBlobDetectionActivity();
             }
         });
+
+        Button TestActivity = (Button) findViewById(R.id.bt_test_activity);
+        TestActivity.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                launchTestActivity();
+            }
+        });
     }
 
     @Override
@@ -119,6 +128,12 @@ public class MainActivity extends AppCompatActivity {
     private void launchColorBlobDetectionActivity() {
 
         Intent intent = new Intent(this, ColorBlobDetectionActivity.class);
+        startActivity(intent);
+    }
+
+    private void launchTestActivity() {
+
+        Intent intent = new Intent(this, TestActivity.class);
         startActivity(intent);
     }
 
