@@ -2,6 +2,29 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.david.opencv">
 
+    <supports-screens
+        android:anyDensity="true"
+        android:largeScreens="true"
+        android:normalScreens="true"
+        android:resizeable="true"
+        android:smallScreens="true" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.front"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.front.autofocus"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/icon"
@@ -20,45 +43,32 @@
         </activity>
         <activity
             android:name=".ImageBrightness"
-            android:theme="@style/AppTheme.NoActionBar">
-        </activity>
+            android:theme="@style/AppTheme.NoActionBar"></activity>
         <activity
             android:name=".Puzzle15Activity"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|orientation" >
-        </activity>
-        <activity android:name="CameraCalibrationActivity"
+            android:configChanges="keyboardHidden|orientation"
+            android:screenOrientation="landscape"></activity>
+        <activity
+            android:name=".CameraCalibrationActivity"
+            android:configChanges="keyboardHidden|orientation"
             android:label=".CameraCalibrationActivity"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|orientation">
-        </activity>
-        <activity android:name="ColorBlobDetectionActivity"
+            android:screenOrientation="landscape"></activity>
+        <activity
+            android:name=".ColorBlobDetectionActivity"
+            android:configChanges="keyboardHidden|orientation"
             android:label=".ColorBlobDetectionActivity"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|orientation">
-        </activity>
-        <activity android:name="TestActivity"
+            android:screenOrientation="landscape"></activity>
+        <activity
+            android:name=".TestActivity"
+            android:configChanges="keyboardHidden|orientation"
             android:label=".TestActivity"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|orientation">
-        </activity>
+            android:screenOrientation="landscape"></activity>
         <activity
             android:name=".SoftScanner"
-            android:screenOrientation="portrait" >
-        </activity>
+            android:screenOrientation="portrait"></activity>
+        <activity android:name=".Edit_Sudoku_Activity"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait"></activity>
     </application>
 
-    <supports-screens android:resizeable="true"
-        android:smallScreens="true"
-        android:normalScreens="true"
-        android:largeScreens="true"
-        android:anyDensity="true" />
-
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-
-    <uses-feature android:name="android.hardware.camera" android:required="false"/>
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
-    <uses-feature android:name="android.hardware.camera.front" android:required="false"/>
-    <uses-feature android:name="android.hardware.camera.front.autofocus" android:required="false"/>
 </manifest>

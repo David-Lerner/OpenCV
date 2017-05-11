@@ -17,8 +17,10 @@ import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.utils.Converters;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -29,6 +31,7 @@ import android.view.SurfaceView;
 import android.widget.LinearLayout;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -43,9 +46,11 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
     private static final String TAG = "TestActivity";
 
     private Mat cameraImage;
-    private List<MatOfPoint> grid;
+    private Mat gridImage;
+    private double[][] points;
     private final Object cameraImageLock = new Object();
     private final Object gridLock = new Object();
+    private Timer timer;
     private CameraBridgeViewBase mOpenCvCameraView;
     private DigitRecognizer mnist;
 
@@ -85,6 +90,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mnist = null;
+        timer = new Timer(true);
         Runnable runnable = new Runnable() {
             public void run() {
                 //mnist = new DigitRecognizer("train-images.idx3-ubyte", "train-labels.idx1-ubyte", getApplicationContext());
@@ -126,15 +132,17 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
     public void onCameraViewStarted(int width, int height) {
         Log.d(TAG, "camera started");
         cameraImage = new Mat(height, width, CvType.CV_8UC4);
-        grid = new ArrayList<MatOfPoint>();
-        Timer timer = new Timer(true);
+        gridImage = new Mat(height, width, CvType.CV_8UC4);
+        points = null;
         timer.scheduleAtFixedRate(new TimerTask() {
             public void run() {
                 Mat input;
+
                 synchronized (cameraImageLock) {
                     input = cameraImage.clone();
                 }
-                Mat outerBox = new Mat(input.size(), CvType.CV_8UC1);
+
+                Mat toGrid = input.clone();
 
                 Imgproc.GaussianBlur(input, input, new Size(11, 11), 0);
 
@@ -165,17 +173,20 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
                 if (contourList.size() > 0) {
                     MatOfPoint2f contour2f = new MatOfPoint2f();
                     MatOfPoint2f approxContour2f = new MatOfPoint2f();
-
-                    MatOfPoint approxContour = new MatOfPoint();
                     contourList.get(index).convertTo(contour2f, CvType.CV_32FC2);
-                    //Imgproc.approxPolyDP(contour2f, approxContour2f, 4, true);
                     Imgproc.approxPolyDP(contour2f, approxContour2f, Imgproc.arcLength(contour2f, true) * 0.02, true);
-                    approxContour2f.convertTo(approxContour, CvType.CV_32S);
-                    synchronized (gridLock) {
-                        grid.clear();
-                        if (approxContour.size().height == 4) {
-                            grid.add(approxContour);
+                    double newPoints[][] = null;
+                    if (approxContour2f.total() == 4) {
+                        newPoints = new double[4][2];
+                        List<Point> dots = approxContour2f.toList();
+                        for (int i = 0; i < 4; i++) {
+                            newPoints[i][0] = dots.get(i).x;
+                            newPoints[i][1] = dots.get(i).y;
                         }
+                    }
+                    synchronized (gridLock) {
+                        gridImage = toGrid;
+                        points = newPoints;
                     }
 
                     contour2f.release();
@@ -189,10 +200,9 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
 
     @Override
     public void onCameraViewStopped() {
+        timer.cancel();
         cameraImage.release();
-        /*for (MatOfPoint point : grid) {
-            point.release();
-        }*/
+        gridImage.release();
     }
 
     @Override
@@ -211,10 +221,18 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
             mnist.FindMatch(digit);
         }*/
 
+        double newPoints[][] = null;
         synchronized (gridLock) {
-            if (!grid.isEmpty()) {
-                Imgproc.drawContours(temp, grid, 0, new Scalar(255, 255, 255), -1);
+            if (points != null) {
+                newPoints = new double[4][2];
+                for (int i = 0; i < 4; i++) {
+                    System.arraycopy(points[i], 0, newPoints[i], 0, 2);
+                }
             }
+        }
+        if (newPoints != null) {
+            Imgproc.fillConvexPoly(temp, new MatOfPoint(new Point(newPoints[0]), new Point(newPoints[1]),
+                    new Point(newPoints[2]), new Point(newPoints[3])), new Scalar(255, 255, 255, .5));
         }
 
         //show rectangle (test)
@@ -236,7 +254,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         Mat lines = new Mat();
         int threshold = 200;
         Imgproc.HoughLinesP(edgeImage, lines, 1, Math.PI/180, threshold,100,60);
-        ArrayList<org.opencv.core.Point> flexCorners=new ArrayList<org.opencv.core.Point>();
+        ArrayList<Point> flexCorners=new ArrayList<Point>();
 
         Log.d(TAG, "lines.size"+lines.size());
         //Find the intersection of the four lines to get the four corners
@@ -244,7 +262,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         {
             for (int j = i+1; j < lines.cols(); j++)
             {
-                org.opencv.core.Point intersectionPoint=getLinesIntersection(lines.get(0, i), lines.get(0, j))	;
+                Point intersectionPoint=getLinesIntersection(lines.get(0, i), lines.get(0, j))	;
                 if(intersectionPoint!=null)
                 {
                     Log.i(TAG, "intersectionPoint: " + intersectionPoint.x+" "+intersectionPoint.y);
@@ -283,7 +301,131 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
                 }
             }
         */
+        
+        Mat sampledImage = null;
+        double[][] gridPoints = null;
+        synchronized (gridLock) {
+            if (points != null) {
+                gridPoints = new double[4][2];
+                for (int i = 0; i < 4; i++) {
+                    System.arraycopy(points[i], 0, gridPoints[i], 0, 2);
+                }
+                sampledImage = gridImage.clone();
+            }
+        }
+        if (sampledImage == null) {
+            return false;
+        }
+        
+        List<Point> flexCorners = new ArrayList<>();
+        for (double[] point : gridPoints) {
+            flexCorners.add(new Point(point[0], point[1]));
+        }
+        Point centroid = new Point(0,0);
+
+        for(Point point : flexCorners)
+        {
+            Log.i(TAG, "Point x: "+ point.x+  " Point y: "+ point.y);
+            centroid.x+=point.x;
+            centroid.y+=point.y;
+        }
+        centroid.x/=((double)flexCorners.size());
+        centroid.y/=((double)flexCorners.size());
+
+        sortCorners(flexCorners,centroid);
+
+        for(Point point:flexCorners)
+        {
+            Log.i(TAG, "PointAfterSort x: "+ point.x+  " PointAfterSort y: "+ point.y);
+            Imgproc.circle(sampledImage, point, (int) 10, new Scalar(0,0,255),2);
+        }
+
+        Mat correctedImage = new Mat(sampledImage.rows(), sampledImage.cols(), sampledImage.type());
+        Mat srcPoints=Converters.vector_Point2f_to_Mat(flexCorners);
+
+        Mat destPoints=Converters.vector_Point2f_to_Mat(Arrays.asList(
+                new Point(30, 30),
+                new Point(correctedImage.cols()-30, 30),
+                new Point(correctedImage.cols()-30,correctedImage.rows()-30),
+                new Point(30,correctedImage.rows()-30)));
+
+        Mat transformation = Imgproc.getPerspectiveTransform(srcPoints, destPoints);
+        Imgproc.warpPerspective(sampledImage, correctedImage, transformation, correctedImage.size());
+        long addr = correctedImage.getNativeObjAddr();
+        Intent intent = new Intent(this, Edit_Sudoku_Activity.class);
+        intent.putExtra( "myImg", addr );
+        startActivity( intent );
+        
         return false;
+    }
+    
+    private void sortCorners(List<Point> corners, Point center)
+    {
+        ArrayList<Point> top=new ArrayList<Point>();
+        ArrayList<Point> bottom=new ArrayList<Point>();
+
+        for (int i = 0; i < corners.size(); i++)
+        {
+            if (corners.get(i).y < center.y)
+                top.add(corners.get(i));
+            else
+                bottom.add(corners.get(i));
+        }
+
+        double topLeft=top.get(0).x;
+        int topLeftIndex=0;
+        for(int i=1;i<top.size();i++)
+        {
+            if(top.get(i).x<topLeft)
+            {
+                topLeft=top.get(i).x;
+                topLeftIndex=i;
+            }
+        }
+
+        double topRight=0;
+        int topRightIndex=0;
+        for(int i=0;i<top.size();i++)
+        {
+            if(top.get(i).x>topRight)
+            {
+                topRight=top.get(i).x;
+                topRightIndex=i;
+            }
+        }
+
+        double bottomLeft=bottom.get(0).x;
+        int bottomLeftIndex=0;
+        for(int i=1;i<bottom.size();i++)
+        {
+            if(bottom.get(i).x<bottomLeft)
+            {
+                bottomLeft=bottom.get(i).x;
+                bottomLeftIndex=i;
+            }
+        }
+
+        double bottomRight=bottom.get(0).x;
+        int bottomRightIndex=0;
+        for(int i=1;i<bottom.size();i++)
+        {
+            if(bottom.get(i).x>bottomRight)
+            {
+                bottomRight=bottom.get(i).x;
+                bottomRightIndex=i;
+            }
+        }
+
+        Point topLeftPoint = top.get(topLeftIndex);
+        Point topRightPoint = top.get(topRightIndex);
+        Point bottomLeftPoint = bottom.get(bottomLeftIndex);
+        Point bottomRightPoint = bottom.get(bottomRightIndex);
+
+        corners.clear();
+        corners.add(topLeftPoint);
+        corners.add(topRightPoint);
+        corners.add(bottomRightPoint);
+        corners.add(bottomLeftPoint);
     }
 
     private void findRectangle(Mat src) throws Exception {
@@ -369,16 +511,16 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
                 + 1e-10);
     }
 
-    private org.opencv.core.Point getLinesIntersection(double [] firstLine, double [] secondLine)
+    private Point getLinesIntersection(double [] firstLine, double [] secondLine)
     {
         double FX1=firstLine[0],FY1=firstLine[1],FX2=firstLine[2],FY2=firstLine[3];
         double SX1=secondLine[0],SY1=secondLine[1],SX2=secondLine[2],SY2=secondLine[3];
-        org.opencv.core.Point intersectionPoint=null;
+        Point intersectionPoint=null;
         //Make sure the we will not divide by zero
         double denominator=(FX1-FX2)*(SY1-SY2)-(FY1-FY2)*(SX1-SX2);
         if(denominator!=0)
         {
-            intersectionPoint=new org.opencv.core.Point();
+            intersectionPoint=new Point();
             intersectionPoint.x=((FX1*FY2-FY1*FX2)*(SX1-SX2)-(FX1-FX2)*(SX1*SY2-SY1*SX2))/denominator;
             intersectionPoint.y=((FX1*FY2-FY1*FX2)*(SY1-SY2)-(FY1-FY2)*(SX1*SY2-SY1*SX2))/denominator;
             if(intersectionPoint.x<0 || intersectionPoint.y<0)

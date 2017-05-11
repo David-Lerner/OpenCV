@@ -701,11 +701,11 @@ public class SoftScanner extends Activity {
             Mat correctedImage=new Mat(sampledImage.rows(),sampledImage.cols(),sampledImage.type());
             Mat srcPoints=Converters.vector_Point2f_to_Mat(flexCorners);
 
-            Mat destPoints=Converters.vector_Point2f_to_Mat(Arrays.asList(new org.opencv.core.Point[]{
+            Mat destPoints=Converters.vector_Point2f_to_Mat(Arrays.asList(
                     new org.opencv.core.Point(30, 30),
                     new org.opencv.core.Point(correctedImage.cols()-30, 30),
                     new org.opencv.core.Point(correctedImage.cols()-30,correctedImage.rows()-30),
-                    new org.opencv.core.Point(30,correctedImage.rows()-30)}));
+                    new org.opencv.core.Point(30,correctedImage.rows()-30)));
 
             Mat transformation=Imgproc.getPerspectiveTransform(srcPoints, destPoints);
             Imgproc.warpPerspective(sampledImage, correctedImage, transformation, correctedImage.size());
