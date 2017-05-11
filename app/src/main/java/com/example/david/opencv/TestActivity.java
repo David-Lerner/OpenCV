@@ -5,8 +5,10 @@ import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
@@ -31,7 +33,6 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import static org.opencv.core.Core.bitwise_not;
 
 
 /**
@@ -143,7 +144,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
 
                 Imgproc.adaptiveThreshold(input, input, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 5, 2);
 
-                bitwise_not(input, input);
+                Core.bitwise_not(input, input);
 
                 Imgproc.dilate(input, input, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2, 2)));
 
@@ -167,7 +168,8 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
 
                     MatOfPoint approxContour = new MatOfPoint();
                     contourList.get(index).convertTo(contour2f, CvType.CV_32FC2);
-                    Imgproc.approxPolyDP(contour2f, approxContour2f, 4, true);
+                    //Imgproc.approxPolyDP(contour2f, approxContour2f, 4, true);
+                    Imgproc.approxPolyDP(contour2f, approxContour2f, Imgproc.arcLength(contour2f, true) * 0.02, true);
                     approxContour2f.convertTo(approxContour, CvType.CV_32S);
                     synchronized (gridLock) {
                         grid.clear();
@@ -175,6 +177,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
                             grid.add(approxContour);
                         }
                     }
+
                     contour2f.release();
                     approxContour2f.release();
                 }
@@ -187,9 +190,9 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
     @Override
     public void onCameraViewStopped() {
         cameraImage.release();
-        for (MatOfPoint point : grid) {
+        /*for (MatOfPoint point : grid) {
             point.release();
-        }
+        }*/
     }
 
     @Override
@@ -213,6 +216,48 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
                 Imgproc.drawContours(temp, grid, 0, new Scalar(255, 255, 255), -1);
             }
         }
+
+        //show rectangle (test)
+        /*try {
+            findRectangle(temp);
+        } catch (Exception e) {
+            Log.d(TAG, e.getMessage());
+        }*/
+
+        //show hough line count
+        /*Mat gray = new Mat();
+        Imgproc.cvtColor(temp, gray, Imgproc.COLOR_RGB2GRAY);
+        Imgproc.GaussianBlur(gray, gray, new Size(15,15), 0);
+
+        Mat edgeImage=new Mat();
+        Imgproc.Canny(gray, edgeImage, 150, 300);
+
+        temp = edgeImage;
+        Mat lines = new Mat();
+        int threshold = 200;
+        Imgproc.HoughLinesP(edgeImage, lines, 1, Math.PI/180, threshold,100,60);
+        ArrayList<org.opencv.core.Point> flexCorners=new ArrayList<org.opencv.core.Point>();
+
+        Log.d(TAG, "lines.size"+lines.size());
+        //Find the intersection of the four lines to get the four corners
+        for (int i = 0; i < lines.cols(); i++)
+        {
+            for (int j = i+1; j < lines.cols(); j++)
+            {
+                org.opencv.core.Point intersectionPoint=getLinesIntersection(lines.get(0, i), lines.get(0, j))	;
+                if(intersectionPoint!=null)
+                {
+                    Log.i(TAG, "intersectionPoint: " + intersectionPoint.x+" "+intersectionPoint.y);
+                    flexCorners.add(intersectionPoint);
+                }
+            }
+        }
+
+        MatOfPoint2f cornersMat=new MatOfPoint2f();
+        cornersMat.convertTo(cornersMat, CvType.CV_32S);
+        cornersMat.fromList(flexCorners);
+        Log.i(TAG, "cornersMat.size:"+cornersMat.size()+"flex size:"+flexCorners.size());
+        Log.i(TAG, "cornersMat.depth: "+ cornersMat.depth()+" CV_32F:"+CvType.CV_32F+" CV_32S:"+CvType.CV_32S);*/
 
         return temp;
     }
@@ -240,4 +285,106 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         */
         return false;
     }
+
+    private void findRectangle(Mat src) throws Exception {
+        Mat blurred = src.clone();
+        Imgproc.medianBlur(src, blurred, 9);
+
+        Mat gray0 = new Mat(blurred.size(), CvType.CV_8U), gray = new Mat();
+
+        List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+
+        List<Mat> blurredChannel = new ArrayList<Mat>();
+        blurredChannel.add(blurred);
+        List<Mat> gray0Channel = new ArrayList<Mat>();
+        gray0Channel.add(gray0);
+
+        MatOfPoint2f approxCurve;
+
+        double maxArea = 0;
+        int maxId = -1;
+
+        for (int c = 0; c < 3; c++) {
+            int ch[] = { c, 0 };
+            Core.mixChannels(blurredChannel, gray0Channel, new MatOfInt(ch));
+
+            int thresholdLevel = 1;
+            for (int t = 0; t < thresholdLevel; t++) {
+                if (t == 0) {
+                    Imgproc.Canny(gray0, gray, 10, 20, 3, true); // true ?
+                    Imgproc.dilate(gray, gray, new Mat(), new Point(-1, -1), 1); // 1
+                    // ?
+                } else {
+                    Imgproc.adaptiveThreshold(gray0, gray, thresholdLevel,
+                            Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                            Imgproc.THRESH_BINARY,
+                            (src.width() + src.height()) / 200, t);
+                }
+
+                Imgproc.findContours(gray, contours, new Mat(),
+                        Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
+
+                for (MatOfPoint contour : contours) {
+                    MatOfPoint2f temp = new MatOfPoint2f(contour.toArray());
+
+                    double area = Imgproc.contourArea(contour);
+                    approxCurve = new MatOfPoint2f();
+                    Imgproc.approxPolyDP(temp, approxCurve,
+                            Imgproc.arcLength(temp, true) * 0.02, true);
+
+                    if (approxCurve.total() == 4 && area >= maxArea) {
+                        double maxCosine = 0;
+
+                        List<Point> curves = approxCurve.toList();
+                        for (int j = 2; j < 5; j++) {
+
+                            double cosine = Math.abs(angle(curves.get(j % 4),
+                                    curves.get(j - 2), curves.get(j - 1)));
+                            maxCosine = Math.max(maxCosine, cosine);
+                        }
+
+                        if (maxCosine < 0.3) {
+                            maxArea = area;
+                            maxId = contours.indexOf(contour);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (maxId >= 0) {
+            Imgproc.drawContours(src, contours, maxId, new Scalar(255, 0, 0,
+                    .8), 8);
+
+        }
+    }
+
+    private double angle(Point p1, Point p2, Point p0) {
+        double dx1 = p1.x - p0.x;
+        double dy1 = p1.y - p0.y;
+        double dx2 = p2.x - p0.x;
+        double dy2 = p2.y - p0.y;
+        return (dx1 * dx2 + dy1 * dy2)
+                / Math.sqrt((dx1 * dx1 + dy1 * dy1) * (dx2 * dx2 + dy2 * dy2)
+                + 1e-10);
+    }
+
+    private org.opencv.core.Point getLinesIntersection(double [] firstLine, double [] secondLine)
+    {
+        double FX1=firstLine[0],FY1=firstLine[1],FX2=firstLine[2],FY2=firstLine[3];
+        double SX1=secondLine[0],SY1=secondLine[1],SX2=secondLine[2],SY2=secondLine[3];
+        org.opencv.core.Point intersectionPoint=null;
+        //Make sure the we will not divide by zero
+        double denominator=(FX1-FX2)*(SY1-SY2)-(FY1-FY2)*(SX1-SX2);
+        if(denominator!=0)
+        {
+            intersectionPoint=new org.opencv.core.Point();
+            intersectionPoint.x=((FX1*FY2-FY1*FX2)*(SX1-SX2)-(FX1-FX2)*(SX1*SY2-SY1*SX2))/denominator;
+            intersectionPoint.y=((FX1*FY2-FY1*FX2)*(SY1-SY2)-(FY1-FY2)*(SX1*SY2-SY1*SX2))/denominator;
+            if(intersectionPoint.x<0 || intersectionPoint.y<0)
+                return null;
+        }
+        return intersectionPoint;
+    }
+
 }

@@ -83,6 +83,14 @@ public class MainActivity extends AppCompatActivity {
                 launchTestActivity();
             }
         });
+        Button SoftScannerActivity = (Button) findViewById(R.id.bt_soft_scanner);
+        SoftScannerActivity.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                launchSoftScannerActivityActivity();
+            }
+        });
     }
 
     @Override
@@ -134,6 +142,11 @@ public class MainActivity extends AppCompatActivity {
     private void launchTestActivity() {
 
         Intent intent = new Intent(this, TestActivity.class);
+        startActivity(intent);
+    }
+
+    private void launchSoftScannerActivityActivity() {
+        Intent intent = new Intent(this, SoftScanner.class);
         startActivity(intent);
     }
 
