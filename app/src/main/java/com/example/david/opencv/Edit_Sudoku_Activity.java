@@ -33,6 +33,7 @@ public class Edit_Sudoku_Activity extends AppCompatActivity {
     private static final String TAG = "EditSudokuActivity";
 
     private int[][] array;
+    private TessOCR mOCR;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +43,8 @@ public class Edit_Sudoku_Activity extends AppCompatActivity {
         long addr = intent.getLongExtra("myImg", 0);
         Mat tempImg = new Mat( addr );
         Mat img = tempImg.clone();
+
+        mOCR = new TessOCR(getApplicationContext());
 
         setContentView(R.layout.activity_edit__sudoku_);
 
@@ -65,13 +68,14 @@ public class Edit_Sudoku_Activity extends AppCompatActivity {
 
         private Mat input;
         ProgressDialog progressDialog;
-        private DigitRecognizer mnist;
+        //private DigitRecognizer mnist;
 
         @Override
         protected Bitmap doInBackground(Mat... params) {
-            mnist = new DigitRecognizer("train-images.idx3-ubyte", "train-labels.idx1-ubyte", getApplicationContext());
+            //mnist = new DigitRecognizer("train-images.idx3-ubyte", "train-labels.idx1-ubyte", getApplicationContext());
             publishProgress(-1); // Calls onProgressUpdate()
             input = params[0].clone();
+            mOCR.initOCR();
 
             //Imgproc.GaussianBlur(input, input, new Size(11, 11), 0);
 
@@ -173,11 +177,24 @@ public class Edit_Sudoku_Activity extends AppCompatActivity {
                     Imgproc.threshold(digit, digit, 254, 255, Imgproc.THRESH_TOZERO_INV);
                     Imgproc.threshold(digit, digit, 99, 255, Imgproc.THRESH_BINARY);
 
-                    Mat test = new Mat();
-                    Imgproc.resize(digit, test, new Size(mnist.getWidth(),mnist.getHeight()));
-                    //Core.transpose(test, test);
-                    int value = mnist.findValue(test);
-                    publishProgress(j, i, value);
+                    //Mat test = new Mat();
+                    //Imgproc.resize(digit, test, new Size(mnist.getWidth(),mnist.getHeight()));
+                    //int value = mnist.findValue(test);
+
+                    Bitmap bmp = Bitmap.createBitmap(digit.cols(), digit.rows(),
+                            Bitmap.Config.ARGB_8888);
+                    Utils.matToBitmap(digit, bmp);
+
+                    String bmpInfo = String.format("width: %d, height %d", bmp.getWidth(),
+                            bmp.getHeight());
+                    Log.d(TAG, bmpInfo);
+                    mOCR.doOCR(bmp);
+                    int ans = Integer.parseInt(mOCR.doOCR(bmp));
+                    if (ans > 9) {
+                        ans = trimNum(ans);
+                    }
+
+                    publishProgress(j, i, ans);
                 }
             }
 
@@ -185,6 +202,13 @@ public class Edit_Sudoku_Activity extends AppCompatActivity {
             Bitmap bitMap = Bitmap.createBitmap(res.cols(), res.rows(),Bitmap.Config.RGB_565);
             Utils.matToBitmap(res, bitMap);
             return bitMap;
+        }
+
+        private int trimNum(int n) {
+            while (n > 9) {
+                n = n / 10;
+            }
+            return n;
         }
 
         private Mat CalcBlockMeanVariance (Mat Img, int blockSide) {
