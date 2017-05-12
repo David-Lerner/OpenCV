@@ -63,6 +63,14 @@ public class DigitRecognizer {
         }
     }
 
+    public int getHeight() {
+        return height;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
     void ReadMNISTData() throws FileNotFoundException {
 
         //File external_storage = Environment.getExternalStorageDirectory(); //Get SD Card's path
@@ -193,5 +201,31 @@ public class DigitRecognizer {
         //svm.predict(test);
         Log.i("Result:", "" + results.get(0,0)[0]);
 
+    }
+
+    public int findValue(Mat test_image) {
+        Mat test = new Mat(1, test_image.rows() * test_image.cols(), CvType.CV_32FC1);
+        int count = 0;
+        for(int i = 0 ; i < test_image.rows(); i++)
+        {
+            for(int j = 0 ; j < test_image.cols(); j++) {
+                test.put(0, count, test_image.get(i, j)[0]);
+                count++;
+            }
+        }
+
+        Mat results = new Mat(1, 1, CvType.CV_8U);
+
+        //K-NN Prediction
+        knn.findNearest(test, 10, results, new Mat(), new Mat());
+
+        int value;
+        try {
+            Log.d(TAG, "results"+results.get(0,0)[0]);
+            value = (int)results.get(0,0)[0];
+        } catch (Exception e) {
+            value = 0;
+        }
+        return value;
     }
 }
