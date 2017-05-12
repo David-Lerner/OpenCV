@@ -90,7 +90,6 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mnist = null;
-        timer = new Timer(true);
         Runnable runnable = new Runnable() {
             public void run() {
                 //mnist = new DigitRecognizer("train-images.idx3-ubyte", "train-labels.idx1-ubyte", getApplicationContext());
@@ -134,6 +133,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         cameraImage = new Mat(height, width, CvType.CV_8UC4);
         gridImage = new Mat(height, width, CvType.CV_8UC4);
         points = null;
+        timer = new Timer(true);
         timer.scheduleAtFixedRate(new TimerTask() {
             public void run() {
                 Mat input;
@@ -201,6 +201,7 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
     @Override
     public void onCameraViewStopped() {
         timer.cancel();
+        timer.purge();
         cameraImage.release();
         gridImage.release();
     }
@@ -231,8 +232,12 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
             }
         }
         if (newPoints != null) {
-            Imgproc.fillConvexPoly(temp, new MatOfPoint(new Point(newPoints[0]), new Point(newPoints[1]),
-                    new Point(newPoints[2]), new Point(newPoints[3])), new Scalar(255, 255, 255, .5));
+            Mat overlay = temp.clone();
+            Imgproc.fillConvexPoly(overlay, new MatOfPoint(new Point(newPoints[0]), new Point(newPoints[1]),
+                    new Point(newPoints[2]), new Point(newPoints[3])), new Scalar(64, 128, 255));
+            double opacity = 0.4;
+            Core.addWeighted(overlay, opacity, temp, 1 - opacity, 0, temp);
+            overlay.release();
         }
 
         //show rectangle (test)
@@ -334,23 +339,29 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
 
         sortCorners(flexCorners,centroid);
 
-        for(Point point:flexCorners)
+        //draw points
+        /*for(Point point:flexCorners)
         {
             Log.i(TAG, "PointAfterSort x: "+ point.x+  " PointAfterSort y: "+ point.y);
             Imgproc.circle(sampledImage, point, (int) 10, new Scalar(0,0,255),2);
-        }
+        }*/
 
-        Mat correctedImage = new Mat(sampledImage.rows(), sampledImage.cols(), sampledImage.type());
+        int length = (int)getMaxEdgeLength(flexCorners);
+        Mat correctedImage = new Mat(length, length, sampledImage.type());
         Mat srcPoints=Converters.vector_Point2f_to_Mat(flexCorners);
 
+        int offset = 0;
         Mat destPoints=Converters.vector_Point2f_to_Mat(Arrays.asList(
-                new Point(30, 30),
-                new Point(correctedImage.cols()-30, 30),
-                new Point(correctedImage.cols()-30,correctedImage.rows()-30),
-                new Point(30,correctedImage.rows()-30)));
+                new Point(offset, offset),
+                new Point(correctedImage.cols()-offset, offset),
+                new Point(correctedImage.cols()-offset,correctedImage.rows()-offset),
+                new Point(offset,correctedImage.rows()-offset)));
 
+        Log.d(TAG, "rows: "+correctedImage.rows()+" cols: "+correctedImage.cols());
         Mat transformation = Imgproc.getPerspectiveTransform(srcPoints, destPoints);
         Imgproc.warpPerspective(sampledImage, correctedImage, transformation, correctedImage.size());
+        Core.transpose(correctedImage, correctedImage);
+        Core.flip(correctedImage, correctedImage, 1);
         long addr = correctedImage.getNativeObjAddr();
         Intent intent = new Intent(this, Edit_Sudoku_Activity.class);
         intent.putExtra( "myImg", addr );
@@ -426,6 +437,21 @@ public class TestActivity extends Activity implements View.OnTouchListener, Came
         corners.add(topRightPoint);
         corners.add(bottomRightPoint);
         corners.add(bottomLeftPoint);
+    }
+
+    private double getMaxEdgeLength(List<Point> corners) {
+        double max = 0;
+        for (int i = 0; i < corners.size()-1; i++) {
+            for (int j = i+1; j < corners.size(); j++) {
+                Point p1 = corners.get(i);
+                Point p2 = corners.get(j);
+                double dist = Math.sqrt((p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y));
+                if (dist > max) {
+                    max = dist;
+                }
+            }
+        }
+        return max;
     }
 
     private void findRectangle(Mat src) throws Exception {
